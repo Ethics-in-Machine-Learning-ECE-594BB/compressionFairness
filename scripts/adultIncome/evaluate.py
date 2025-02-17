@@ -1,5 +1,4 @@
 import torch
-
 import sys
 import os
 
@@ -7,8 +6,15 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from torch.utils.data import DataLoader
-from src.simpleFCNN import SimpleFCNN
+from src.simpleFCNN import get_teacher_model, get_student_model_8, get_student_model_4
 from src.adultIncome import AdultIncomeDataset
+
+# Model paths
+MODEL_PATHS = {
+    "Teacher (16 neurons)": "models/baseline/teacher_model_adult.pth",
+    "Student (8 neurons)": "models/distillation/fcnn_student_model_adult_income_8.pth",
+    "Student (4 neurons)": "models/distillation/fcnn_student_model_adult_income_4.pth"
+}
 
 # Load dataset
 dataset = AdultIncomeDataset("data/raw/adult.csv")
@@ -24,20 +30,34 @@ elif torch.cuda.is_available():
 else:
     device = torch.device("cpu")   # Default to CPU
 
-model = SimpleFCNN(input_size=dataset.X.shape[1]).to(device)
-model.load_state_dict(torch.load("/Users/ethan3048/Documents/school/winter25/ece594bbEthics/compressionFairness/models/baseline/fcnn_model_adult_income.pth"))
-model.eval()
+# Function to evaluate a model
+def evaluate_model(model, model_name):
+    model.to(device)
+    model.eval()
 
-# Evaluate model
-correct, total = 0, 0
-with torch.no_grad():
-    for inputs, labels in test_loader:
-        inputs, labels = inputs.to(device), labels.to(device)
+    correct, total = 0, 0
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
 
-        outputs = model(inputs)
-        predicted = (outputs >= 0.5).float()
-        correct += (predicted == labels).sum().item()
-        total += labels.size(0)
+            outputs = model(inputs)
+            predicted = (outputs >= 0.5).float()
+            correct += (predicted == labels).sum().item()
+            total += labels.size(0)
 
-accuracy = correct / total
-print(f"Test Accuracy: {accuracy:.4f}")
+    accuracy = correct / total
+    print(f"{model_name} Accuracy: {accuracy:.4f}")
+
+# Load and evaluate each model
+models = {
+    "Teacher (16 neurons)": get_teacher_model(input_size=dataset.X.shape[1]),
+    "Student (8 neurons)": get_student_model_8(input_size=dataset.X.shape[1]),
+    "Student (4 neurons)": get_student_model_4(input_size=dataset.X.shape[1])
+}
+
+for model_name, model in models.items():
+    if os.path.exists(MODEL_PATHS[model_name]):  # Ensure model file exists
+        model.load_state_dict(torch.load(MODEL_PATHS[model_name], map_location=device))
+        evaluate_model(model, model_name)
+    else:
+        print(f"Warning: Model file not found for {model_name}. Skipping.")

@@ -1,6 +1,7 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from torch.utils.data import DataLoader
 import sys
 import os
 
@@ -9,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 
 
 from torch.utils.data import DataLoader
-from src.simpleFCNN import SimpleFCNN
+from src.simpleFCNN import SimpleFCNN, get_teacher_model
 from src.adultIncome import AdultIncomeDataset
 
 # Detect the best available device
@@ -21,6 +22,7 @@ else:
     device = torch.device("cpu")   # Default to CPU
 
 print(f"Using device: {device}")
+
 
 # Hyperparameters
 BATCH_SIZE = 32
@@ -34,16 +36,16 @@ test_size = len(dataset) - train_size
 train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
-# Model setup
-model = SimpleFCNN(input_size=dataset.X.shape[1], hidden_size=16).to(device)
+# Initialize model
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = get_teacher_model(input_size=dataset.X.shape[1]).to(device)
 
-# Loss and optimizer
+# Loss & Optimizer
 criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-# Training loop
+# Train loop
 for epoch in range(EPOCHS):
     model.train()
     total_loss = 0
@@ -61,6 +63,6 @@ for epoch in range(EPOCHS):
 
     print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {total_loss / len(train_loader):.4f}")
 
-# Save model
-torch.save(model.state_dict(), "models/baseline/fcnn_model_adult_income.pth")
-print("Model saved successfully!")
+# Save teacher model
+torch.save(model.state_dict(), "models/baseline/teacher_model_adult.pth")
+print("Teacher model saved successfully!")
