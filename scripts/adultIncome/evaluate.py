@@ -11,7 +11,7 @@ from src.adultIncome import AdultIncomeDataset
 
 # Model paths
 MODEL_PATHS = {
-    "Teacher (16 neurons)": "models/baseline/teacher_model_adult.pth",
+    "Teacher (16 neurons)": "models/baseline/teacher_model.pth",
     "Student (8 neurons)": "models/distillation/fcnn_student_model_adult_income_8.pth",
     "Student (4 neurons)": "models/distillation/fcnn_student_model_adult_income_4.pth"
 }

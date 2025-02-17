@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 
 
 from torch.utils.data import DataLoader
-from src.simpleFCNN import SimpleFCNN, get_teacher_model
+from src.simpleFCNN import SimpleFCNN, get_teacher_model, get_principle_model
 from src.adultIncome import AdultIncomeDataset
 
 # Detect the best available device
@@ -39,7 +39,8 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # Initialize model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = get_teacher_model(input_size=dataset.X.shape[1]).to(device)
+# model = get_teacher_model(input_size=dataset.X.shape[1]).to(device)
+model = get_principle_model(input_size=dataset.X.shape[1]).to(device)
 
 # Loss & Optimizer
 criterion = nn.BCELoss()

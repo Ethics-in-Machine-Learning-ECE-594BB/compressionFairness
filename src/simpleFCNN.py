@@ -16,6 +16,9 @@ class SimpleFCNN(nn.Module):
         x = self.sigmoid(x)  # ✅ Apply sigmoid correctly
         return x
 
+# Teacher Model (16 neurons)
+def get_principle_model(input_size):
+    return SimpleFCNN(input_size, 128)
 
 # Teacher Model (16 neurons)
 def get_teacher_model(input_size):
