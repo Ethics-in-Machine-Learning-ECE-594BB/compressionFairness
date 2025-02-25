@@ -1,23 +1,30 @@
 import torch
 import sys
 import os
+import argparse 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--dataset", type=str, help="Dataset to use to train", choices=['compas', 'adult'])
+args = parser.parse_args()
 # Add the project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from torch.utils.data import DataLoader
 from src.simpleFCNN import get_teacher_model, get_student_model_8, get_student_model_4
 from src.adultIncome import AdultIncomeDataset
-
+from src.compas import CompasDataset
 # Model paths
 MODEL_PATHS = {
-    "Teacher (16 neurons)": "models/baseline/teacher_model.pth",
-    "Student (8 neurons)": "models/distillation/fcnn_student_model_adult_income_8.pth",
-    "Student (4 neurons)": "models/distillation/fcnn_student_model_adult_income_4.pth"
+    "Teacher (16 neurons)": f"models/baseline/teacher_model_{args.dataset}.pth",
+    "Student (8 neurons)": f"models/distillation/fcnn_student_model_{args.dataset}_income_8.pth",
+    "Student (4 neurons)": f"models/distillation/fcnn_student_model_{args.dataset}_income_4.pth"
 }
 
 # Load dataset
-dataset = AdultIncomeDataset("data/raw/adult.csv")
+if args.dataset == 'Adult':
+    dataset = AdultIncomeDataset("data/raw/adult.csv")
+else:
+    dataset = CompasDataset("data/raw/compas.csv")
 _, test_dataset = torch.utils.data.random_split(dataset, [int(0.8 * len(dataset)), len(dataset) - int(0.8 * len(dataset))])
 
 test_loader = DataLoader(test_dataset, batch_size=32)
