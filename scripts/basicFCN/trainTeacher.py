@@ -4,6 +4,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import sys
 import os
+import argparse 
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--dataset", type=str, help="Dataset to use to train", choices=['compas', 'adult'])
+args = parser.parse_args()
 
 # Add the project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
@@ -12,6 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 from torch.utils.data import DataLoader
 from src.simpleFCNN import SimpleFCNN, get_teacher_model, get_principle_model
 from src.adultIncome import AdultIncomeDataset
+from src.compas import CompasDataset
 
 # Detect the best available device
 if torch.backends.mps.is_available():
@@ -30,7 +36,10 @@ EPOCHS = 10
 LEARNING_RATE = 0.001
 
 # Load dataset
-dataset = AdultIncomeDataset("data/raw/adult.csv")
+if args.dataset == 'Adult':
+    dataset = AdultIncomeDataset("data/raw/adult.csv")
+else:
+    dataset = CompasDataset("data/raw/compas.csv")
 train_size = int(0.8 * len(dataset))
 test_size = len(dataset) - train_size
 train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
@@ -65,5 +74,5 @@ for epoch in range(EPOCHS):
     print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {total_loss / len(train_loader):.4f}")
 
 # Save teacher model
-torch.save(model.state_dict(), "models/baseline/teacher_model_adult.pth")
+torch.save(model.state_dict(), f"models/baseline/teacher_model_{args.dataset}.pth")
 print("Teacher model saved successfully!")
