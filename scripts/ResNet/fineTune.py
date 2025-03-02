@@ -4,6 +4,7 @@ import torch.backends.mps
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
+from tqdm import tqdm
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 from torchvision import models
@@ -14,7 +15,7 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", type=str, help="Dataset to use", choices=['CelebA'] )
+parser.add_argument("--dataset", type=str, help="Dataset to use", choices=['CelebA'], default='CelebA')
 args = parser.parse_args()
 
 if torch.backends.mps.is_available():
@@ -26,10 +27,9 @@ else:
 
 print(f"Using device: {device}")
 
-BATCH_SIZE = 32
-EPOCHS = 10
+BATCH_SIZE = 512
+EPOCHS = 5
 LEARNING_RATE = 0.001
-TEMPERATURE = 3.0
 ALPHA = 0.5
 
 # load dataset
@@ -39,12 +39,12 @@ if args.dataset == "CelebA":
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224,0.225])
     ])
-    train_dataset = ImageFolder(root='../../data/images/celeb_train_set/', transform=transform)
+    train_dataset = ImageFolder(root='../../data/images/train/', transform=transform)
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # load model and add fc layer
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 if args.dataset =='CelebA':
     model.fc = nn.Linear(model.fc.in_features, 2) # 2 classes for CelebA dataset
 optimizer = optim.Adam(model.parameters(),lr=LEARNING_RATE)
@@ -57,10 +57,11 @@ for param in model.fc.parameters():
     param.requires_grad = True
 model.to(device)
 
+prev_loss = float('inf')
 # Train Loop
-for epoch in range(EPOCHS):
+for epoch in tqdm(range(EPOCHS)):
     total_loss = 0 
-    for inputs, labels in train_loader:
+    for inputs, labels in tqdm(train_loader):
         inputs, labels = inputs.to(device), labels.to(device)
 
         optimizer.zero_grad()
@@ -70,7 +71,9 @@ for epoch in range(EPOCHS):
         optimizer.step()
 
         total_loss+=loss.item()
-    print(f"Epoch {epoch}, Loss: {total_loss/len(train_loader)}")
-
+    print(f"Epoch {epoch}, Loss: {total_loss/len(train_loader)}") 
+    if total_loss/len(train_loader) - prev_loss <= 0.0001:
+        print("Terminating Early")
+        break
 print("Saving Model")
-torch.save(model.state_dict(), f"../../models/ResNet18/base")
+torch.save(model.state_dict(), f"../../models/baseline/ResNET18_Base.pth")
