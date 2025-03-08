@@ -15,7 +15,8 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", type=str, help="Dataset to use", choices=['CelebA'], default='CelebA')
+parser.add_argument("--dataset", type=str, help="Dataset to use", choices=['FairFace'], default='FairFace')
+parser.add_argument("--size", type=int, help="Select Resnet 18 or 50", choices=[18,50], default=50)
 args = parser.parse_args()
 
 if torch.backends.mps.is_available():
@@ -28,15 +29,17 @@ else:
 print(f"Using device: {device}")
 
 BATCH_SIZE = 512
-EPOCHS = 5
+EPOCHS = 2
 LEARNING_RATE = 0.001
 ALPHA = 0.5
 
 # load dataset
-if args.dataset == "CelebA":
+if args.dataset == "FairFace":
     transform = transforms.Compose([
-        transforms.Resize((224,224)),
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
+        transforms.RandomPerspective(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224,0.225])
     ])
     train_dataset = ImageFolder(root='../../data/images/train/', transform=transform)
@@ -44,10 +47,16 @@ if args.dataset == "CelebA":
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # load model and add fc layer
-model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-if args.dataset =='CelebA':
+if args.size == 50:
+    model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+else:
+    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+
+# change final output layer to fit classification task 
+if args.dataset =='FairFace':
     model.fc = nn.Linear(model.fc.in_features, 2) # 2 classes for CelebA dataset
 optimizer = optim.Adam(model.parameters(),lr=LEARNING_RATE)
+# include fair regularizer here in future
 criterion = nn.CrossEntropyLoss()
 
 # freeze all but last layer 
@@ -72,8 +81,8 @@ for epoch in tqdm(range(EPOCHS)):
 
         total_loss+=loss.item()
     print(f"Epoch {epoch}, Loss: {total_loss/len(train_loader)}") 
-    if total_loss/len(train_loader) - prev_loss <= 0.0001:
-        print("Terminating Early")
-        break
+    # if total_loss/len(train_loader) - prev_loss <= 0.0001:
+    #     print("Terminating Early")
+    #     break
 print("Saving Model")
-torch.save(model.state_dict(), f"../../models/baseline/ResNET18_Base.pth")
+torch.save(model.state_dict(), f"../../models/baseline/ResNET{args.size}_Base.pth")
