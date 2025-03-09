@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 from src.quantization import static_quantization
 
 print("Loading Data and Model")
-base_model = models.resnet18()
+base_model = models.resnet18(weights=None)
 base_model.fc = nn.Linear(base_model.fc.in_features, 2) # 2 classes for CelebA dataset
 quant_model = base_model
 quant_model.load_state_dict(torch.load('../../models/baseline/ResNET18_Base.pth'))
@@ -27,4 +27,4 @@ def forward_loop(model):
     for image, _ in calib_loader:
         model(image)
 print("Starting Quantization")
-static_quantization(quant_model,forward_loop, '../../models/quantized/ResNET_')
+static_quantization(quant_model,forward_loop, '../../models/quantized/ResNET18_')

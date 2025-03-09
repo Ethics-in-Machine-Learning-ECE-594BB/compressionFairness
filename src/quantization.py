@@ -7,7 +7,7 @@ import modelopt.torch.opt as mto
 from tqdm import tqdm 
 from src.simpleFCNN import SimpleFCNN
 
-INT16_CFG = [{
+QUANT_METHODS =[ [{
     "quant_cfg": {
     "*weight_quantizer": {"num_bits": 16, "axis": 0},
     "*input_quantizer": {"num_bits": 16, "axis": None},
@@ -17,19 +17,17 @@ INT16_CFG = [{
     "default": {"enable": False},
     },
     "algorithm": "max",
-}, 'INT16']
-INT8_CFG = [{
+}, 'INT16'], [{
     "quant_cfg": {
-    "*weight_quantizer": {"num_bits": 16, "axis": 0},
-    "*input_quantizer": {"num_bits": 16, "axis": None},
+    "*weight_quantizer": {"num_bits": 8, "axis": 0},
+    "*input_quantizer": {"num_bits": 8, "axis": None},
     "*lm_head*": {"enable": False},
     "*block_sparse_moe.gate*": {"enable": False},  # Skip the MOE router
     "*router*": {"enable": False},  # Skip the MOE router
     "default": {"enable": False},
     },
     "algorithm": "max",
-}, 'INT8']
-INT4_CFG = [{
+}, 'INT8'], [{
     "quant_cfg": {
     "*weight_quantizer": {"num_bits": 4, "axis": 0},
     "*input_quantizer": {"num_bits": 4, "axis": None},
@@ -39,18 +37,17 @@ INT4_CFG = [{
     "default": {"enable": False},
     },
     "algorithm": "max",
-}, 'INT4']
-FP8_DEFAULT_CFG = [{
-    "quant_cfg": {
-    "*weight_quantizer": {"num_bits": (4, 3), "axis": None},
-    "*input_quantizer": {"num_bits": (4, 3), "axis": None},
-    "*block_sparse_moe.gate*": {"enable": False},  # Skip the MOE router
-    "*router*": {"enable": False},  # Skip the MOE router
-    "default": {"enable": False},
-    },
-    "algorithm": "max",
-}, 'FP8']
-
+}, 'INT4'] ]
+# [{
+#     "quant_cfg": {
+#     "*weight_quantizer": {"num_bits": (4, 3), "axis": None},
+#     "*input_quantizer": {"num_bits": (4, 3), "axis": None},
+#     "*block_sparse_moe.gate*": {"enable": False},  # Skip the MOE router
+#     "*router*": {"enable": False},  # Skip the MOE router
+#     "default": {"enable": False},
+#     },
+#     "algorithm": "max",
+# }, 'FP8']
 # torch optimization for fusing quantized layers together, helps with inference speed
 # dependent on model architecture needs changing for other models 
 def fuse_modules(model): 
@@ -87,8 +84,7 @@ def static_quantization(model_to_quant,forward_loop, path):
 #     quantized_size = compute_model_size_in_memory(quantized_model.to('cpu'), bit_width)
 #     print(f"Quantized size: {quantized_size}")
     print("Quantizing model, note this may take a few minutes")
-    quant_methods = [INT16_CFG, INT8_CFG, INT4_CFG, FP8_DEFAULT_CFG]
-    for quant_method in quant_methods:
+    for quant_method in QUANT_METHODS:
         quantized_model = copy.deepcopy(model_to_quant)
         print(f"Method: {quant_method[1]}")
         quantized_model = mtq.quantize(quantized_model, quant_method[0], forward_loop)
