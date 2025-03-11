@@ -9,12 +9,20 @@ from torchvision import models
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from src.quantization import static_quantization
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--task", type=str, help="Dataset to use", choices=['gender', 'face'])
+parser.add_argument("--size", type=int, choices=[50,18])
+args = parser.parse_args()
 
 print("Loading Data and Model")
-base_model = models.resnet18(weights=None)
+if args.size == 50: 
+    base_model = models.resnet50(weights=None)
+else:
+    base_model = models.resnet18(weights=None)
 base_model.fc = nn.Linear(base_model.fc.in_features, 2) # 2 classes for CelebA dataset
 quant_model = base_model
-quant_model.load_state_dict(torch.load('../../models/baseline/ResNET18_Base.pth'))
+quant_model.load_state_dict(torch.load(f'../../models/baseline/{args.task}_ResNET{args.size}_Base.pth'))
 transform = transforms.Compose([
     transforms.Resize((224,224)),
     transforms.ToTensor(),
@@ -27,4 +35,4 @@ def forward_loop(model):
     for image, _ in calib_loader:
         model(image)
 print("Starting Quantization")
-static_quantization(quant_model,forward_loop, '../../models/quantized/ResNET18_')
+static_quantization(quant_model,forward_loop, f'../../models/quantized/{args.task}_ResNET{args.size}_')

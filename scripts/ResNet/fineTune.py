@@ -23,9 +23,9 @@ import sys
 import os 
 import argparse
 
-torch.manual_seed(42)
+torch.manual_seed(80)
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", type=str, help="Dataset to use", choices=['FairFace'], default='FairFace')
+parser.add_argument("--task", type=str, help="Dataset to use", choices=['gender', 'face'])
 parser.add_argument("--qat", type=bool, default=False)
 parser.add_argument("--size", type=int, help="Select Resnet 18 or 50", choices=[18,50], default=50)
 args = parser.parse_args()
@@ -40,33 +40,31 @@ else:
 print(f"Using device: {device}")
 
 BATCH_SIZE = 512
-EPOCHS = 7
+EPOCHS = 6
 LEARNING_RATE = 0.001
 ALPHA = 0.5
-
+transform = transforms.Compose([
+    transforms.Resize((224,224)),
+    transforms.ToTensor(),
+    transforms.RandomPerspective(distortion_scale=0.3, p=0.5),
+    # transforms.RandomAffine(degrees=45),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224,0.225])
+])
 # load dataset
-if args.dataset == "FairFace":
-    transform = transforms.Compose([
-        transforms.Resize((224,224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.RandomPerspective(distortion_scale=0.3, p=0.5),
-        # transforms.RandomAffine(degrees=45),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224,0.225])
-    ])
-    train_dataset = ImageFolder(root='../../data/images/train/', transform=transform)
-
+if args.task == "face":
+    train_dataset = ImageFolder(root='../../data/images/rebalanced_train/', transform=transform)
+else: 
+    train_dataset = ImageFolder('../../data/images/gender_train/', transform=transform)
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # load model and add fc layer
 if args.size == 50:
-    model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+    model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
 else:
     model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
 # change final output layer to fit classification task 
-if args.dataset =='FairFace':
-    model.fc = nn.Linear(model.fc.in_features, 2) # 2 classes for CelebA dataset
+model.fc = nn.Linear(model.fc.in_features, 2) # 2 classes for bianry
 optimizer = optim.Adam(model.parameters(),lr=LEARNING_RATE)
 
 if args.qat == True:
@@ -80,9 +78,8 @@ if args.qat == True:
 criterion = nn.CrossEntropyLoss()
 
 # freeze all but last last layer and FC
-for name, param in model.named_parameters():
-    if not 'layer4' in name:
-        param.requires_grad = False
+for param in model.parameters():
+    param.requires_grad = False
 for param in model.fc.parameters():
     param.requires_grad = True
 prev_loss = float('inf')
@@ -113,21 +110,28 @@ if args.qat == True: # QAT Loop
         mto.save(quant_model, f'../../models/quantized/QAT_ResNET{args.size}_{quant_method[1]}.pth')
 else: # Regular Train Loop 
     model.to(device)
+    model.train()
     for epoch in tqdm(range(EPOCHS)):
         total_loss = 0 
+        correct = 0
+        samples = 0
         for inputs, labels in tqdm(train_loader):
             inputs, labels = inputs.to(device), labels.to(device)
-
+            samples +=labels.size(0)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-
+            output = torch.argmax(outputs, dim=1)
+            correct += (output==labels).sum().item()
             total_loss+=loss.item()
-        print(f"Epoch {epoch}, Loss: {total_loss/len(train_loader)}") 
+        avg_loss = total_loss/samples
+        acc = correct/samples
+        print(f"Epoch acc{epoch}, Acc: {correct/samples}")
+        print(f"Epoch {epoch}, Loss: {total_loss/samples}") 
         # if total_loss/len(train_loader) - prev_loss <= 0.0001:
         #     print("Terminating Early")
         #     break
     print("Saving Model")
-    torch.save(model.state_dict(), f"../../models/baseline/ResNET{args.size}_Base.pth")
+    torch.save(model.state_dict(), f"../../models/baseline/{args.task}_ResNET{args.size}_Base.pth")

@@ -43,5 +43,11 @@ for dir in tqdm(allimages):
         os.rename(src_path, dst_path)
 Might be a more efficient way of doing this but idk
 """
+
+
+"""
+Rebalancing FairFace to be more reflective of other face datasets 
+
+"""
 import pandas as pd 
 # TODO: evaluation loader for working with AIF360
