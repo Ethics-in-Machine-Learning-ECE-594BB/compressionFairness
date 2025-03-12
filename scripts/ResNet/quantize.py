@@ -13,6 +13,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--task", type=str, help="Dataset to use", choices=['gender', 'face'])
 parser.add_argument("--size", type=int, choices=[50,18])
+parser.add_argument("--seed", type=int)
 args = parser.parse_args()
 
 print("Loading Data and Model")
@@ -28,11 +29,15 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224,0.225])
 ])
-calib_dataset = ImageFolder(root='../../data/images/calib/', transform=transform)
-
-calib_loader = DataLoader(calib_dataset, batch_size=64, shuffle=True)
+if args.size == 18:
+    calib_dataset = ImageFolder(root='../../data/images/18_calib/', transform=transform)
+    calib_loader = DataLoader(calib_dataset, batch_size=64, shuffle=True)
+else:
+    calib_dataset = ImageFolder(root='../../data/images/50_calib/', transform=transform)
+    calib_loader = DataLoader(calib_dataset, batch_size=512, shuffle=True)
 def forward_loop(model):
-    for image, _ in calib_loader:
+    for image, _ in tqdm(calib_loader):
         model(image)
 print("Starting Quantization")
-static_quantization(quant_model,forward_loop, f'../../models/quantized/{args.task}_ResNET{args.size}_')
+# for quant_method in QUANT_METHODS
+static_quantization(quant_model,forward_loop, f'../../models/quantized/Balanced/seed_{args.seed}/{args.task}_ResNET{args.size}_')

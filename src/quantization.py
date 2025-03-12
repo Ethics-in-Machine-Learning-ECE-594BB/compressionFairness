@@ -27,17 +27,18 @@ QUANT_METHODS =[ [{
     "default": {"enable": False},
     },
     "algorithm": "max",
-}, 'INT8'], [{
-    "quant_cfg": {
-    "*weight_quantizer": {"num_bits": 4, "axis": 0},
-    "*input_quantizer": {"num_bits": 4, "axis": None},
-    "*lm_head*": {"enable": False},
-    "*block_sparse_moe.gate*": {"enable": False},  # Skip the MOE router
-    "*router*": {"enable": False},  # Skip the MOE router
-    "default": {"enable": False},
-    },
-    "algorithm": "max",
-}, 'INT4'] ]
+}, 'INT8']]
+#  [{
+#     "quant_cfg": {
+#     "*weight_quantizer": {"num_bits": 4, "axis": 0},
+#     "*input_quantizer": {"num_bits": 4, "axis": None},
+#     "*lm_head*": {"enable": False},
+#     "*block_sparse_moe.gate*": {"enable": False},  # Skip the MOE router
+#     "*router*": {"enable": False},  # Skip the MOE router
+#     "default": {"enable": False},
+#     },
+#     "algorithm": "max",
+# }, 'INT4'] ]
 # [{
 #     "quant_cfg": {
 #     "*weight_quantizer": {"num_bits": (4, 3), "axis": None},
@@ -68,6 +69,22 @@ def compute_model_size_in_memory(model, bit_width):
     return (param_size+buffer_size)/(1024*1024)  # Convert to MB
 
 def static_quantization(model_to_quant,forward_loop, path):
+    print("Quantizing model, note this may take a few minutes")
+    for quant_method in QUANT_METHODS:
+        quantized_model = copy.deepcopy(model_to_quant)
+        print(f"Method: {quant_method[1]}")
+        quantized_model = mtq.quantize(quantized_model, quant_method[0], forward_loop)
+        quantized_model.to(torch.device('cpu')) # should be put on cpu otherwise errors will arise during load
+        mto.save(quantized_model, f"{path}{quant_method[1]}.pth")
+
+def load_quantized(base_model, path_to_quant):
+    base_model.to(torch.device('cpu'))
+    quant_model = mto.restore(base_model, path_to_quant)
+    return quant_model
+
+
+
+
 #     quantized_model.eval()
 #     quantized_model.qconfig = quantization.QConfig(activation=myObserver.with_args(bit_width=bit_width), weight=quantization.default_weight_observer)
 #     # quantized_model.qconfig = quantization.default_qconfig
@@ -83,15 +100,3 @@ def static_quantization(model_to_quant,forward_loop, path):
 #     torch.save(quantized_model.state_dict(), path)
 #     quantized_size = compute_model_size_in_memory(quantized_model.to('cpu'), bit_width)
 #     print(f"Quantized size: {quantized_size}")
-    print("Quantizing model, note this may take a few minutes")
-    for quant_method in QUANT_METHODS:
-        quantized_model = copy.deepcopy(model_to_quant)
-        print(f"Method: {quant_method[1]}")
-        quantized_model = mtq.quantize(quantized_model, quant_method[0], forward_loop)
-        quantized_model.to(torch.device('cpu')) # should be put on cpu otherwise errors will arise during load
-        mto.save(quantized_model, f"{path}{quant_method[1]}.pth")
-
-def load_quantized(base_model, path_to_quant):
-    base_model.to(torch.device('cpu'))
-    quant_model = mto.restore(base_model, path_to_quant)
-    return quant_model

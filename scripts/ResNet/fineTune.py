@@ -23,13 +23,14 @@ import sys
 import os 
 import argparse
 
-torch.manual_seed(80)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--task", type=str, help="Dataset to use", choices=['gender', 'face'])
 parser.add_argument("--qat", type=bool, default=False)
 parser.add_argument("--size", type=int, help="Select Resnet 18 or 50", choices=[18,50], default=50)
+parser.add_argument("--seed", type=int)
 args = parser.parse_args()
-
+torch.manual_seed(args.seed)
 if torch.backends.mps.is_available():
     device = torch.device("mps")
 elif torch.cuda.is_available():
@@ -40,7 +41,7 @@ else:
 print(f"Using device: {device}")
 
 BATCH_SIZE = 512
-EPOCHS = 6
+EPOCHS = 7
 LEARNING_RATE = 0.001
 ALPHA = 0.5
 transform = transforms.Compose([
@@ -54,7 +55,7 @@ transform = transforms.Compose([
 if args.task == "face":
     train_dataset = ImageFolder(root='../../data/images/rebalanced_train/', transform=transform)
 else: 
-    train_dataset = ImageFolder('../../data/images/gender_train/', transform=transform)
+    train_dataset = ImageFolder('../../data/images/b_gender_train/', transform=transform)
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # load model and add fc layer
@@ -71,7 +72,7 @@ if args.qat == True:
     def forward_loop(model):
         for image, _ in calib_loader:
             model(image)
-    if args.dataset == 'FairFace':
+    if args.task == 'gender':
         calib_dataset = ImageFolder(root='../../data/images/calib', transform=transform)
         calib_loader = DataLoader(calib_dataset, batch_size=64, shuffle=True)
 
@@ -87,13 +88,12 @@ if args.qat == True: # QAT Loop
     for quant_method in QUANT_METHODS[:2]:
         quant_model = copy.deepcopy(model)
         quant_model = mtq.quantize(quant_model, quant_method[0], forward_loop)
-        for name, param in quant_model.named_parameters():
-            if not 'layer4' in name:
-                param.requires_grad = False
-        for param in model.fc.parameters():
+        for param in quant_model.parameters():
             param.requires_grad = True
-        quant_model.train()
+        for param in quant_model.fc.parameters():
+            param.requires_grad = True
         quant_model.to(device)
+        quant_model.train()
         for epoch in tqdm(range(EPOCHS)):
             total_loss = 0 
             for inputs, labels in tqdm(train_loader):
@@ -134,4 +134,4 @@ else: # Regular Train Loop
         #     print("Terminating Early")
         #     break
     print("Saving Model")
-    torch.save(model.state_dict(), f"../../models/baseline/{args.task}_ResNET{args.size}_Base.pth")
+    torch.save(model.state_dict(), f"../../models/baseline/Balanced/seed_{args.seed}/{args.task}_ResNET{args.size}_Base.pth")

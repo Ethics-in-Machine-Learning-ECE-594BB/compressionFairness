@@ -9,9 +9,10 @@ import modelopt.torch.opt as mto
 import copy 
 import sys 
 import os
+import pandas as pd
 from tqdm import tqdm
 from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import models
 import torch.nn.functional as F
 from torch.autograd import Function
@@ -30,6 +31,27 @@ from src.quantization import QUANT_METHODS
 import sys
 import os 
 import argparse
+
+
+
+class FairFace(Dataset):
+    def __init__(self, image_dataset, race_dict):
+        self.image_dataset = image_dataset
+        self.race_dict = race_dict
+        self.image_paths = [os.path.basename(path[0]) for path in image_dataset.imgs]  # Get image filenames
+
+    def __len__(self):
+        return len(self.image_dataset)
+
+    def __getitem__(self, idx):
+        image, gender_label = self.image_dataset[idx]  # Load image and gender label
+        filename = self.image_paths[idx]  # Get filename
+        
+        # Get race label (default to -1 if missing)
+        race_label = self.race_dict.get(filename, -1)  
+        
+        return image, gender_label, race_label
+
 
 class GradientReversalFunction(Function):
     """
@@ -199,12 +221,12 @@ def train_with_fairness_constraint(model, train_loader, epochs, device,
         lambda_fair = initial_lambda + (final_lambda - initial_lambda) * (epoch / epochs)
         criterion = ImprovedFairnessLoss(fairness_type=fairness_type, lambda_fair=lambda_fair)
         
-        for inputs, labels in tqdm(train_loader):
+        for inputs, labels,race_labels in tqdm(train_loader):
             inputs, labels = inputs.to(device), labels.to(device)
-            
+            race_labels = race_labels.to(device)
             # For FairFace, extract protected attributes (assuming they're encoded in the labels)
             # This needs to be adapted to your specific dataset structure
-            protected_attrs = (labels == protected_attr_idx).float()
+            protected_attrs = race_labels.float()
             
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -246,17 +268,17 @@ def train_adversarial(model, train_loader, epochs, device, protected_attr_idx=0,
         discriminator.train()
         total_task_loss = 0
         total_adv_loss = 0
-        
+        samples = 0
         # Calculate current adversarial weight
         adv_weight = initial_adv_weight + (final_adv_weight - initial_adv_weight) * (epoch / epochs)
         
-        for batch_idx, (inputs, labels) in enumerate(tqdm(train_loader)):
+        for batch_idx, (inputs, labels, race_label) in enumerate(tqdm(train_loader)):
             inputs, labels = inputs.to(device), labels.to(device)
-            
+            race_label = race_label.to(device)
             # Extract protected attributes (assuming they're encoded in the labels)
             # This needs to be adapted to your specific dataset structure
-            protected_attrs = (labels == protected_attr_idx).float().unsqueeze(1)
-            
+            protected_attrs = race_label.float().unsqueeze(1)
+            samples+=labels.size(0)
             # Phase 1: Train discriminator less frequently
             if batch_idx % 3 == 0:
                 disc_optimizer.zero_grad()
@@ -290,7 +312,7 @@ def train_adversarial(model, train_loader, epochs, device, protected_attr_idx=0,
             total_task_loss += task_loss.item()
             total_adv_loss += adv_loss.item()
         
-        print(f"Epoch {epoch+1}/{epochs}, Task Loss: {total_task_loss/len(train_loader):.4f}, "
+        print(f"Epoch {epoch+1}/{epochs}, Task Loss: {total_task_loss/samples:.4f}, "
               f"Adv Loss: {total_adv_loss/len(train_loader):.4f}, "
               f"Adv Weight: {adv_weight:.4f}")
     
@@ -327,7 +349,7 @@ else:
 print(f"Using device: {device}")
 
 BATCH_SIZE = 512
-EPOCHS = 7
+EPOCHS = 15
 LEARNING_RATE = 0.001
 ALPHA = 0.5
 
@@ -341,9 +363,11 @@ if args.dataset == "FairFace":
         # transforms.RandomAffine(degrees=45),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224,0.225])
     ])
-    train_dataset = ImageFolder(root='../../data/images/train/', transform=transform)
-
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    image_dataset = ImageFolder(root='../../data/images/gender_train/', transform=transform)
+race_df = pd.read_csv('../../data/raw/gender_train_race.csv')
+race_dict = {row['FileName']: row['race'] for _, row in race_df.iterrows()}
+train_dataset = FairFace(image_dataset, race_dict)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True) # Need to set shuffle to false to use correct protected labels 
 
 # load model and add fc layer
 if args.size == 50:
@@ -367,9 +391,8 @@ if args.qat == True:
 criterion = nn.CrossEntropyLoss()
 
 # freeze all but last last layer and FC
-for name, param in model.named_parameters():
-    if not 'layer4' in name:
-        param.requires_grad = False
+for param in model.parameters():
+    param.requires_grad = False
 for param in model.fc.parameters():
     param.requires_grad = True
 prev_loss = float('inf')

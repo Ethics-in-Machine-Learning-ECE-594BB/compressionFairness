@@ -50,4 +50,7 @@ Rebalancing FairFace to be more reflective of other face datasets
 
 """
 import pandas as pd 
+from torchvision.datasets import ImageFolder
+from torch.utils.data import Dataset, DataLoader
+
 # TODO: evaluation loader for working with AIF360
