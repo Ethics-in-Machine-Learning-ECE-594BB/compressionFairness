@@ -23,7 +23,7 @@ else:
     base_model = models.resnet18(weights=None)
 base_model.fc = nn.Linear(base_model.fc.in_features, 2) # 2 classes for CelebA dataset
 quant_model = base_model
-quant_model.load_state_dict(torch.load(f'../../models/baseline/{args.task}_ResNET{args.size}_Base.pth'))
+quant_model.load_state_dict(torch.load(f'../../models/baseline/Balanced/seed_{args.seed}/{args.task}_ResNET{args.size}_Base.pth'))
 transform = transforms.Compose([
     transforms.Resize((224,224)),
     transforms.ToTensor(),

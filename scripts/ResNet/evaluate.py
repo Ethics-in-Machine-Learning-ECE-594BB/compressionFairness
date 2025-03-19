@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--size", type=int, choices=[18,50])
 parser.add_argument("--version", type=str, choices=['base', 'quant', 'pruned', 'fair'])
 parser.add_argument('--task', type=str, choices=['face', 'gender'])
+parser.add_argument('--seed', type=int)
 args = parser.parse_args()
 # gender label 1 Male, 0 Female
 # race 0 East Asian, 1 Indian, 2 Black, 3 White, 4 Middle Eastern, 5 Latino, 6 Southeast Asian 
@@ -47,11 +48,11 @@ elif args.version == 'base':
     if args.size == 18:
         model = models.resnet18(weights=None)
         model.fc = nn.Linear(model.fc.in_features, 2)
-        model.load_state_dict(torch.load(f"../../models/baseline/{args.task}_ResNET18_Base.pth"))
+        model.load_state_dict(torch.load(f"../../models/baseline/Balanced/seed_{args.seed}/{args.task}_ResNET18_Base.pth"))
     else:
         model = models.resnet50(weights=None)
         model.fc = nn.Linear(model.fc.in_features, 2)
-        model.load_state_dict(torch.load(f"../../models/baseline/{args.task}_ResNET50_Base.pth"))
+        model.load_state_dict(torch.load(f"../../models/baseline/Balanced/seed_{args.seed}/{args.task}_ResNET50_Base.pth"))
     model.to(device)
 elif args.version == 'fair':
     if args.size == 18:
@@ -94,7 +95,7 @@ if args.version == 'quant':
         pred_df = pd.DataFrame({"prediction": predictions})
         results = pd.concat([attributes, pred_df], axis=1)
         path = os.path.basename(model)[:-4]
-        results.to_csv(f'../../results/ResFair/Balanced/seed{args.seed}/{path}.csv')
+        results.to_csv(f'../../results/ResFair/Balanced/seed_{args.seed}/{path}.csv')
 elif args.version == 'base':
     model.eval()
     predictions = []
@@ -111,7 +112,7 @@ elif args.version == 'base':
             predictions.extend(predicted.cpu().numpy())
         pred_df = pd.DataFrame({"prediction": predictions})
         results = pd.concat([attributes, pred_df], axis=1)
-        results.to_csv(f'../../results/ResFair/Balanced/seed{args.seed}/{args.task}_Base_ResNET{args.size}.csv') 
+        results.to_csv(f'../../results/ResFair/Balanced/seed_{args.seed}/{args.task}_Base_ResNET{args.size}.csv') 
         print(f"Acc {correct/sample}")
 elif args.version =='fair':
     for path in tqdm(model_paths):
