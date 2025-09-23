@@ -1,0 +1,27 @@
+# Typical Python ignores
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dylib
+
+# Virtual environments
+.venv/
+venv/
+env/
+*.env
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# MacOS metadata
+.DS_Store
+.aider*
+
+CONVENTIONS.md
